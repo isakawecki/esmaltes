@@ -1,15 +1,8 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  FlatList,
-  TouchableOpacity,
-  Image,
-  Modal,
-  StyleSheet,
-} from 'react-native';
-import EsmalteCard from '../components/esmalteCard';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, FlatList, TouchableOpacity, Modal, StyleSheet } from 'react-native';
+import axios from 'axios'; // Importando o axios
+
+const API_URL = 'http://192.168.x.x:8080/colecao'; // Substitua pelo IP do seu computador na rede local
 
 export default function HomeScreen() {
   const [esmaltes, setEsmaltes] = useState([]);
@@ -19,35 +12,52 @@ export default function HomeScreen() {
   const [esmalteAtual, setEsmalteAtual] = useState({});
   const [confirmarDelete, setConfirmarDelete] = useState(false);
 
-  const salvarEsmalte = () => {
-    if (modoEdicao) {
-      setEsmaltes(prev =>
-        prev.map(e => (e.id === esmalteAtual.id ? esmalteAtual : e))
-      );
-    } else {
-      setEsmaltes(prev => [
-        ...prev,
-        { ...esmalteAtual, id: Date.now().toString() },
-      ]);
+  // Função para buscar todos os esmaltes
+  const fetchEsmaltes = async () => {
+    try {
+      const response = await axios.get(API_URL); // Fazendo a requisição GET para o backend
+      setEsmaltes(response.data); // Atualiza o estado com os dados da resposta
+    } catch (error) {
+      console.error('Erro ao buscar esmaltes', error); // Lida com erro
     }
-    setModalVisivel(false);
-    setEsmalteAtual({});
   };
 
-  const excluirEsmalte = () => {
-    setEsmaltes(prev => prev.filter(e => e.id !== esmalteAtual.id));
-    setConfirmarDelete(false);
-    setEsmalteAtual({});
+  // Função para adicionar ou editar o esmalte
+  const salvarEsmalte = async () => {
+    try {
+      if (modoEdicao) {
+        await axios.put(`${API_URL}/editar/${esmalteAtual.id}`, esmalteAtual); // Fazendo requisição PUT para editar
+      } else {
+        await axios.post(`${API_URL}/criar`, esmalteAtual); // Fazendo requisição POST para adicionar
+      }
+      setModalVisivel(false);
+      setEsmalteAtual({});
+      fetchEsmaltes(); // Recarrega os esmaltes
+    } catch (error) {
+      console.error('Erro ao salvar esmalte', error);
+    }
   };
+
+  // Função para excluir o esmalte
+  const excluirEsmalte = async () => {
+    try {
+      await axios.delete(`${API_URL}/excluir/${esmalteAtual.id}`); // Fazendo requisição DELETE para excluir
+      setConfirmarDelete(false);
+      setEsmalteAtual({});
+      fetchEsmaltes(); // Recarrega os esmaltes
+    } catch (error) {
+      console.error('Erro ao excluir esmalte', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchEsmaltes(); // Carrega os esmaltes quando a tela é carregada
+  }, []);
 
   return (
     <View style={styles.container}>
       {/* Barra de busca */}
       <View style={styles.searchContainer}>
-        <Image
-          source={require('../assets/lupa.png')}
-          style={styles.searchIcon}
-        />
         <TextInput
           placeholder="Buscar na coleção"
           placeholderTextColor="#999"
@@ -74,22 +84,26 @@ export default function HomeScreen() {
         data={esmaltes.filter(e =>
           e.nome.toLowerCase().includes(busca.toLowerCase())
         )}
-        keyExtractor={item => item.id}
+        keyExtractor={item => item.id.toString()}
         renderItem={({ item }) => (
-          <EsmalteCard
-            esmalte={item}
-            onEdit={item => {
+          <View style={styles.card}>
+            <Text>{item.nome}</Text>
+            <Text>{item.marca}</Text>
+            <TouchableOpacity onPress={() => {
               setModoEdicao(true);
               setEsmalteAtual(item);
               setModalVisivel(true);
-            }}
-            onDelete={item => {
+            }}>
+              <Text style={styles.editText}>Editar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => {
               setEsmalteAtual(item);
               setConfirmarDelete(true);
-            }}
-          />
+            }}>
+              <Text style={styles.deleteText}>Excluir</Text>
+            </TouchableOpacity>
+          </View>
         )}
-        contentContainerStyle={styles.listaContainer}
       />
 
       {/* Modal de criação/edição */}
@@ -171,12 +185,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E0B0FF',
   },
-  searchIcon: {
-    width: 18,
-    height: 18,
-    tintColor: '#999',
-    marginRight: 8,
-  },
   searchInput: {
     flex: 1,
     height: 36,
@@ -194,10 +202,21 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: 'bold',
   },
-  listaContainer: {
-    justifyContent: 'center',
+  card: {
+    padding: 15,
+    marginBottom: 10,
+    backgroundColor: '#FFF',
+    borderRadius: 6,
+    marginHorizontal: 20,
     alignItems: 'center',
-    paddingBottom: 10,
+  },
+  editText: {
+    color: '#BA68C8',
+    marginTop: 10,
+  },
+  deleteText: {
+    color: 'red',
+    marginTop: 5,
   },
   modal: {
     flex: 1,
