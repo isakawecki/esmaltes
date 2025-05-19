@@ -1,125 +1,82 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, FlatList, TouchableOpacity, Modal, StyleSheet } from 'react-native';
-import axios from 'axios'; // Importando o axios
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Modal,
+  StyleSheet,
+} from 'react-native';
 
-const API_URL = 'http://192.168.x.x:8080/colecao'; // Substitua pelo IP do seu computador na rede local
+const API_URL = 'https://10.105.71.144:8080/colecao';
 
 export default function HomeScreen() {
-  const [esmaltes, setEsmaltes] = useState([]);
-  const [busca, setBusca] = useState('');
   const [modalVisivel, setModalVisivel] = useState(false);
   const [modoEdicao, setModoEdicao] = useState(false);
-  const [esmalteAtual, setEsmalteAtual] = useState({});
-  const [confirmarDelete, setConfirmarDelete] = useState(false);
+  const [esmalteAtual, setEsmalteAtual] = useState({
+    nome: '',
+    marca: '',
+    cor: '',
+    imgUrl: '',
+  });
 
-  // Função para buscar todos os esmaltes
-  const fetchEsmaltes = async () => {
-    try {
-      const response = await axios.get(API_URL); // Fazendo a requisição GET para o backend
-      setEsmaltes(response.data); // Atualiza o estado com os dados da resposta
-    } catch (error) {
-      console.error('Erro ao buscar esmaltes', error); // Lida com erro
-    }
-  };
-
-  // Função para adicionar ou editar o esmalte
+  // Função para salvar ou editar esmalte
   const salvarEsmalte = async () => {
+    console.log('Esmalte a salvar:', esmalteAtual);
     try {
-      if (modoEdicao) {
-        await axios.put(`${API_URL}/editar/${esmalteAtual.id}`, esmalteAtual); // Fazendo requisição PUT para editar
-      } else {
-        await axios.post(`${API_URL}/criar`, esmalteAtual); // Fazendo requisição POST para adicionar
+      const method = modoEdicao ? 'PUT' : 'POST'; // Define o método dependendo do modo de edição
+      const url = modoEdicao 
+        ? `${API_URL}/editar/${esmalteAtual.id}` 
+        : `${API_URL}/criar`;
+
+      const response = await fetch(url, {
+        method: method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(esmalteAtual), // Corpo com dados do esmalte
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao salvar esmalte');
       }
+
+      // Limpa o modal e os dados após salvar
       setModalVisivel(false);
-      setEsmalteAtual({});
-      fetchEsmaltes(); // Recarrega os esmaltes
+      setEsmalteAtual({ nome: '', marca: '', cor: '', imgUrl: '' });
     } catch (error) {
       console.error('Erro ao salvar esmalte', error);
     }
   };
 
-  // Função para excluir o esmalte
-  const excluirEsmalte = async () => {
-    try {
-      await axios.delete(`${API_URL}/excluir/${esmalteAtual.id}`); // Fazendo requisição DELETE para excluir
-      setConfirmarDelete(false);
-      setEsmalteAtual({});
-      fetchEsmaltes(); // Recarrega os esmaltes
-    } catch (error) {
-      console.error('Erro ao excluir esmalte', error);
-    }
-  };
-
-  useEffect(() => {
-    fetchEsmaltes(); // Carrega os esmaltes quando a tela é carregada
-  }, []);
-
   return (
     <View style={styles.container}>
-      {/* Barra de busca */}
-      <View style={styles.searchContainer}>
-        <TextInput
-          placeholder="Buscar na coleção"
-          placeholderTextColor="#999"
-          value={busca}
-          onChangeText={setBusca}
-          style={styles.searchInput}
-        />
-      </View>
-
-      {/* Botão adicionar esmalte */}
+      {/* Botão para adicionar novo esmalte */}
       <TouchableOpacity
         style={styles.addButton}
         onPress={() => {
           setModoEdicao(false);
-          setEsmalteAtual({ nome: '', marca: '', cor: '', imagem: '' });
+          setEsmalteAtual({ nome: '', marca: '', cor: '', imgUrl: '' });
           setModalVisivel(true);
         }}
       >
         <Text style={styles.addButtonText}>+ Adicionar esmalte</Text>
       </TouchableOpacity>
 
-      {/* Lista de esmaltes */}
-      <FlatList
-        data={esmaltes.filter(e =>
-          e.nome.toLowerCase().includes(busca.toLowerCase())
-        )}
-        keyExtractor={item => item.id.toString()}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Text>{item.nome}</Text>
-            <Text>{item.marca}</Text>
-            <TouchableOpacity onPress={() => {
-              setModoEdicao(true);
-              setEsmalteAtual(item);
-              setModalVisivel(true);
-            }}>
-              <Text style={styles.editText}>Editar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => {
-              setEsmalteAtual(item);
-              setConfirmarDelete(true);
-            }}>
-              <Text style={styles.deleteText}>Excluir</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      />
-
-      {/* Modal de criação/edição */}
+      {/* Modal para adicionar ou editar esmalte */}
       <Modal visible={modalVisivel} animationType="slide">
         <View style={styles.modal}>
           <TextInput
-            placeholder="URL da imagem"
-            value={esmalteAtual.imagem}
+            placeholder="Imagem (URL)"
+            value={esmalteAtual.imgUrl || ''}
             onChangeText={texto =>
-              setEsmalteAtual({ ...esmalteAtual, imagem: texto })
+              setEsmalteAtual({ ...esmalteAtual, imgUrl: texto })
             }
             style={styles.input}
           />
           <TextInput
             placeholder="Nome"
-            value={esmalteAtual.nome}
+            value={esmalteAtual.nome || ''}
             onChangeText={texto =>
               setEsmalteAtual({ ...esmalteAtual, nome: texto })
             }
@@ -127,7 +84,7 @@ export default function HomeScreen() {
           />
           <TextInput
             placeholder="Marca"
-            value={esmalteAtual.marca}
+            value={esmalteAtual.marca || ''}
             onChangeText={texto =>
               setEsmalteAtual({ ...esmalteAtual, marca: texto })
             }
@@ -135,33 +92,19 @@ export default function HomeScreen() {
           />
           <TextInput
             placeholder="Cor"
-            value={esmalteAtual.cor}
+            value={esmalteAtual.cor || ''}
             onChangeText={texto =>
               setEsmalteAtual({ ...esmalteAtual, cor: texto })
             }
             style={styles.input}
           />
+
           <View style={styles.modalBotoes}>
             <TouchableOpacity onPress={() => setModalVisivel(false)}>
               <Text style={styles.cancelar}>Cancelar</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={salvarEsmalte}>
               <Text style={styles.salvar}>Salvar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Modal confirmar exclusão */}
-      <Modal visible={confirmarDelete} transparent animationType="fade">
-        <View style={styles.modalExcluir}>
-          <Text>Deseja excluir esse esmalte?</Text>
-          <View style={styles.modalBotoes}>
-            <TouchableOpacity onPress={() => setConfirmarDelete(false)}>
-              <Text style={styles.cancelar}>Cancelar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={excluirEsmalte}>
-              <Text style={styles.excluir}>Excluir</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -175,20 +118,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F3E5F5',
   },
-  searchContainer: {
-    flexDirection: 'row',
-    margin: 12,
-    backgroundColor: '#FFF',
-    borderRadius: 35,
-    paddingHorizontal: 10,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E0B0FF',
-  },
-  searchInput: {
-    flex: 1,
-    height: 36,
-  },
   addButton: {
     backgroundColor: '#BA68C8',
     marginHorizontal: 60,
@@ -201,22 +130,6 @@ const styles = StyleSheet.create({
     color: '#FFF',
     textAlign: 'center',
     fontWeight: 'bold',
-  },
-  card: {
-    padding: 15,
-    marginBottom: 10,
-    backgroundColor: '#FFF',
-    borderRadius: 6,
-    marginHorizontal: 20,
-    alignItems: 'center',
-  },
-  editText: {
-    color: '#BA68C8',
-    marginTop: 10,
-  },
-  deleteText: {
-    color: 'red',
-    marginTop: 5,
   },
   modal: {
     flex: 1,
@@ -242,16 +155,5 @@ const styles = StyleSheet.create({
   salvar: {
     color: '#6A1B9A',
     fontWeight: 'bold',
-  },
-  excluir: {
-    color: 'red',
-    fontWeight: 'bold',
-  },
-  modalExcluir: {
-    backgroundColor: '#FFF',
-    padding: 20,
-    margin: 50,
-    borderRadius: 10,
-    alignItems: 'center',
   },
 });

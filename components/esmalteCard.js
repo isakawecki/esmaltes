@@ -4,7 +4,7 @@ import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 export default function EsmalteCard({ esmalte, onEdit, onDelete }) {
   return (
     <View style={styles.card}>
-      <Image source={{ uri: esmalte.imagem }} style={styles.imagem} />
+      <Image source={{ uri: esmalte.imgUrl }} style={styles.imgUrl} />
       <Text style={styles.nome}>{esmalte.nome}</Text>
       <Text style={styles.marca}>{esmalte.marca}</Text>
       <Text style={styles.cor}>{esmalte.cor}</Text>
@@ -36,7 +36,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 5,
   },
-  imagem: {
+  imgUrl: {
     width: 180,
     height: 168,
     resizeMode: 'contain',
