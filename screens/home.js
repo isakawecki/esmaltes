@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,44 +10,113 @@ import {
   StyleSheet,
 } from 'react-native';
 import EsmalteCard from '../components/esmalteCard';
+import { baseURL } from '../config/config';
+import { Pressable } from 'react-native';
+
 
 export default function HomeScreen() {
   const [esmaltes, setEsmaltes] = useState([]);
   const [busca, setBusca] = useState('');
   const [modalVisivel, setModalVisivel] = useState(false);
   const [modoEdicao, setModoEdicao] = useState(false);
-  const [esmalteAtual, setEsmalteAtual] = useState({});
+  const [esmalteAtual, setEsmalteAtual] = useState({
+    nome: '',
+    marca: '',
+    cor: '',
+    imgUrl: '',
+  });
   const [confirmarDelete, setConfirmarDelete] = useState(false);
+  const [erroCarregamento, setErroCarregamento] = useState(null);
+
+  const carregarCatalogo = async () => {
+    try {
+      const res = await fetch(`${baseURL}/colecao`);
+      const texto = await res.text();
+      console.log('Resposta da API (raw):', texto);
+      let data;
+      try {
+        data = JSON.parse(texto);
+      } catch (jsonError) {
+        throw new Error(`Resposta não é JSON válido: ${texto}`);
+      }
+      if (Array.isArray(data)) {
+        setEsmaltes(data);
+      } else if (data.esmaltes && Array.isArray(data.esmaltes)) {
+        setEsmaltes(data.esmaltes);
+      } else {
+        console.error('Formato inesperado dos dados:', data);
+        setEsmaltes([]);
+      }
+      setErroCarregamento(null);
+    } catch (err) {
+      console.error('Erro ao carregar:', err.message);
+      setErroCarregamento(err.message);
+      setEsmaltes([]);
+    }
+  };
 
   const salvarEsmalte = () => {
-    if (modoEdicao) {
-      setEsmaltes(prev =>
-        prev.map(e => (e.id === esmalteAtual.id ? esmalteAtual : e))
-      );
-    } else {
-      setEsmaltes(prev => [
-        ...prev,
-        { ...esmalteAtual, id: Date.now().toString() },
-      ]);
-    }
-    setModalVisivel(false);
-    setEsmalteAtual({});
-  };
+    const url = modoEdicao
+      ? `${baseURL}/colecao/editar/${esmalteAtual.id}`
+      : `${baseURL}/colecao/criar`;
 
-  const excluirEsmalte = () => {
-    setEsmaltes(prev => prev.filter(e => e.id !== esmalteAtual.id));
-    setConfirmarDelete(false);
-    setEsmalteAtual({});
+    const metodo = modoEdicao ? 'PUT' : 'POST';
+
+    fetch(url, {
+      method: metodo,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        nome: esmalteAtual.nome,
+        marca: esmalteAtual.marca,
+        cor: esmalteAtual.cor,
+        imgUrl: esmalteAtual.imgUrl,
+      }),
+    })
+      .then(res => res.json())
+      .then(() => {
+        setModalVisivel(false);
+        setEsmalteAtual({ nome: '', marca: '', cor: '', imgUrl: '' });
+        setModoEdicao(false);
+        carregarCatalogo();
+      })
+      .catch(err => console.error('Erro ao salvar:', err));
   };
+const excluirEsmalte = () => {
+  if (!esmalteAtual.id) {
+    console.warn('ID do esmalte não definido para exclusão!');
+    return;
+  }
+
+  console.log('Tentando excluir esmalte com ID:', esmalteAtual.id);
+
+  fetch(`${baseURL}/colecao/excluir/${esmalteAtual.id}`, {
+    method: 'DELETE',
+  })
+    .then(res => {
+      console.log('Resposta do DELETE:', res.status);
+      if (res.ok) {
+        setEsmaltes(prev => prev.filter(e => e.id !== esmalteAtual.id));
+        setConfirmarDelete(false);
+        setEsmalteAtual({ nome: '', marca: '', cor: '', imgUrl: '' });
+      } else {
+        alert('Erro ao excluir esmalte.');
+      }
+    })
+    .catch(err => {
+      console.error('Erro na requisição DELETE:', err);
+      alert('Erro ao comunicar com o servidor.');
+    });
+};
+
+
 
   return (
     <View style={styles.container}>
       {/* Barra de busca */}
       <View style={styles.searchContainer}>
-        <Image
-          source={require('../assets/lupa.png')}
-          style={styles.searchIcon}
-        />
+        <Image source={require('../assets/lupa.png')} style={styles.searchIcon} />
         <TextInput
           placeholder="Buscar na coleção"
           placeholderTextColor="#999"
@@ -57,12 +126,21 @@ export default function HomeScreen() {
         />
       </View>
 
+      {/* Mostra erro de carregamento */}
+      {erroCarregamento ? (
+        <View style={{ padding: 10 }}>
+          <Text style={{ color: 'red', textAlign: 'center' }}>
+            Erro ao carregar esmaltes: {erroCarregamento}
+          </Text>
+        </View>
+      ) : null}
+
       {/* Botão adicionar esmalte */}
       <TouchableOpacity
         style={styles.addButton}
         onPress={() => {
           setModoEdicao(false);
-          setEsmalteAtual({ nome: '', marca: '', cor: '', imagem: '' });
+          setEsmalteAtual({ nome: '', marca: '', cor: '', imgUrl: '' });
           setModalVisivel(true);
         }}
       >
@@ -74,13 +152,25 @@ export default function HomeScreen() {
         data={esmaltes.filter(e =>
           e.nome.toLowerCase().includes(busca.toLowerCase())
         )}
-        keyExtractor={item => item.id}
+        keyExtractor={item => item.id.toString()}
         renderItem={({ item }) => (
           <EsmalteCard
-            esmalte={item}
+            esmalte={{
+              ...item,
+              nome: item.nome,
+              marca: item.marca,
+              cor: item.cor,
+              imagem: item.imgUrl,
+            }}
             onEdit={item => {
               setModoEdicao(true);
-              setEsmalteAtual(item);
+              setEsmalteAtual({
+                id: item.id,
+                nome: item.nome,
+                marca: item.marca,
+                cor: item.cor,
+                imgUrl: item.imgUrl,
+              });
               setModalVisivel(true);
             }}
             onDelete={item => {
@@ -97,9 +187,9 @@ export default function HomeScreen() {
         <View style={styles.modal}>
           <TextInput
             placeholder="URL da imagem"
-            value={esmalteAtual.imagem}
+            value={esmalteAtual.imgUrl}
             onChangeText={texto =>
-              setEsmalteAtual({ ...esmalteAtual, imagem: texto })
+              setEsmalteAtual({ ...esmalteAtual, imgUrl: texto })
             }
             style={styles.input}
           />
@@ -128,7 +218,13 @@ export default function HomeScreen() {
             style={styles.input}
           />
           <View style={styles.modalBotoes}>
-            <TouchableOpacity onPress={() => setModalVisivel(false)}>
+            <TouchableOpacity
+              onPress={() => {
+                setModalVisivel(false);
+                setModoEdicao(false);
+                setEsmalteAtual({ nome: '', marca: '', cor: '', imgUrl: '' });
+              }}
+            >
               <Text style={styles.cancelar}>Cancelar</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={salvarEsmalte}>
